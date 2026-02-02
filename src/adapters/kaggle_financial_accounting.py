@@ -11,6 +11,7 @@ from .base import LoadedData
 
 @dataclass(frozen=True)
 class KaggleCleanStats:
+    """Summary of normalization outcomes for the Kaggle adapter."""
     rows_in: int
     rows_out: int
     dropped_bad_date: int
@@ -18,14 +19,29 @@ class KaggleCleanStats:
 
 
 class KaggleFinancialAccountingAdapter:
+    """
+    Adapter for the Kaggle "financial_accounting.csv" style dataset.
+
+    Responsibility: normalize the raw export into the canonical internal schema
+    (accounts, transactions, vendors) so shared validators can run.
+    """
 
     def __init__(self,
                  default_currency: str = "USD",
                  drop_bad_rows: bool = True) -> None:
+        """
+        Parameters
+        ----------
+        default_currency:
+            Currency to assign to all records (source dataset does not provide currency).
+        drop_bad_rows:
+            If True, drop rows with unparseable dates or amounts after normalization.
+        """
         self._default_currency = default_currency
         self._drop_bad_rows = drop_bad_rows
 
     def load(self, input_path: Path) -> LoadedData:
+        """Load the CSV and return canonical (accounts, transactions, vendors) tables."""
         raw = pd.read_csv(input_path)
         cleaned, _stats = self._clean(raw)
 
@@ -36,11 +52,19 @@ class KaggleFinancialAccountingAdapter:
         return LoadedData(accounts=accounts, transactions=transactions, vendors=vendors)
 
     def _clean(self, df: pd.DataFrame) -> tuple[pd.DataFrame, KaggleCleanStats]:
+        """
+        Minimal deterministic normalization needed for evaluation.
+
+        - trims column names/strings
+        - parses date and debit amount into canonical fields
+        - optionally drops rows that cannot be evaluated
+        """
         rows_in = int(df.shape[0])
 
         df = df.copy()
         df.columns = [c.strip() for c in df.columns]
 
+        # Required fields for building canonical accounts/transactions.
         required = {
             "Date", "Account", "Debit", "Category", "Transaction_Type",
             "Description", "Customer_Vendor"
@@ -49,6 +73,7 @@ class KaggleFinancialAccountingAdapter:
         if missing:
             raise ValueError(f"Missing required columns: {sorted(missing)}")
 
+        # Normalize common text fields (some columns are optional in Kaggle exports).
         for col in ["Account", "Description", "Category", "Transaction_Type",
                     "Customer_Vendor", "Payment_Method"]:
             if col in df.columns:
@@ -62,6 +87,7 @@ class KaggleFinancialAccountingAdapter:
         bad_amount = int(debit.isna().sum())
         df["debit_num"] = debit
 
+        # Track how many rows are dropped due to non-evaluable fields.
         dropped_bad_date = 0
         dropped_bad_amount = 0
         if self._drop_bad_rows:
@@ -82,9 +108,11 @@ class KaggleFinancialAccountingAdapter:
         return df, stats
 
     def _build_accounts(self, df: pd.DataFrame) -> tuple[pd.DataFrame, Dict[str, int]]:
+        """Create a canonical accounts table based on unique 'Account' names."""
         unique_accounts = sorted(df["Account"].dropna().unique().tolist())
         account_id_map: Dict[str, int] = {name: 1000 + i for i, name in enumerate(unique_accounts, start=1)}
 
+        # Heuristic mapping from Category strings to a small standardized type set.
         def map_type(cat: str) -> str:
             c = str(cat).strip().lower()
             if c in {"asset", "liability", "revenue", "expense", "equity"}:
@@ -99,6 +127,7 @@ class KaggleFinancialAccountingAdapter:
                 return "expense"
             return "unknown"
 
+        # For each account, use the most common Category as a proxy for account type.
         cat_mode = (
             df.groupby("Account")["Category"]
               .agg(lambda s: s.value_counts().index[0] if not s.empty else "unknown")
@@ -114,11 +143,14 @@ class KaggleFinancialAccountingAdapter:
         return accounts, account_id_map
 
     def _build_transactions(self, df: pd.DataFrame, account_id_map: Dict[str, int]) -> pd.DataFrame:
+        """Create a canonical transactions table; sign is inferred from Transaction_Type."""
         tx = pd.DataFrame()
 
+        # Dataset does not provide stable IDs, so generate deterministic sequential IDs.
         tx["transaction_id"] = [f"kfa_{i:06d}" for i in range(1, df.shape[0] + 1)]
         tx["account_id"] = df["Account"].map(account_id_map).astype("Int64")
 
+        # Convert the dataset's "Debit" value into a signed canonical amount.
         def signed_amount(row) -> float:
             t = str(row["Transaction_Type"]).lower()
             val = float(row["debit_num"])
@@ -130,6 +162,7 @@ class KaggleFinancialAccountingAdapter:
         tx["currency"] = self._default_currency
         tx["date"] = df["date_iso"].astype(str)
 
+        # Preserve free-text description; include Reference when present.
         desc = df["Description"].fillna("").astype(str)
         if "Reference" in df.columns:
             tx["description"] = desc + " | ref=" + df["Reference"].astype(str)
@@ -139,6 +172,7 @@ class KaggleFinancialAccountingAdapter:
         return tx
 
     def _build_vendors(self, df: pd.DataFrame) -> Optional[pd.DataFrame]:
+        """Build a vendors table when Customer_Vendor is present and non-empty."""
         if "Customer_Vendor" not in df.columns:
             return None
 
@@ -151,6 +185,6 @@ class KaggleFinancialAccountingAdapter:
         vendors = pd.DataFrame({
             "vendor_id": [f"v{i:05d}" for i in range(1, len(unique_v) + 1)],
             "name": unique_v,
-            "country": "" 
+            "country": ""
         })
         return vendors

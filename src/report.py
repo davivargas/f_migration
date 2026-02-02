@@ -11,6 +11,7 @@ from .anomalies import AnomalyResult
 
 
 class RiskLevel(str, Enum):
+    """Coarse migration decision based on detected issues/anomalies."""
     LOW = "LOW"
     MEDIUM = "MEDIUM"
     HIGH = "HIGH"
@@ -18,6 +19,7 @@ class RiskLevel(str, Enum):
 
 @dataclass(frozen=True)
 class Summary:
+    """Aggregated results of a migration evaluation run."""
     accounts_count: int
     transactions_count: int
     vendors_count: Optional[int]
@@ -27,6 +29,7 @@ class Summary:
 
 
 def _risk_from_counts(issue_count: int, anomaly_count: int) -> RiskLevel:
+    """Map total findings to a coarse risk level (simple heuristic)."""
     total = issue_count + anomaly_count
     if total == 0:
         return RiskLevel.LOW
@@ -40,9 +43,16 @@ def build_summary(accounts_count: int,
                   vendors_count: Optional[int],
                   issues: List[Issue],
                   anomaly: Optional[AnomalyResult]) -> Summary:
+    """
+    Build the final evaluation summary, including the derived risk level.
+
+    Note: "Top N" outliers is treated as a manual review signal (MEDIUM) even when
+    there are no other detected issues.
+    """
     anomaly_count = 0 if anomaly is None else anomaly.count
     risk = _risk_from_counts(sum(i.count for i in issues), anomaly_count)
 
+    # Top-N outliers is an inspection mode; it should not produce LOW risk.
     if not issues and anomaly is not None and anomaly.message.startswith("Top "):
         risk = RiskLevel.MEDIUM
 
@@ -57,6 +67,11 @@ def build_summary(accounts_count: int,
 
 
 def format_summary(summary: Summary) -> str:
+    """
+    Human-readable CLI report.
+
+    Prints counts and up to 2 examples per issue/anomaly to keep output readable.
+    """
     lines: List[str] = []
     lines.append("Migration Summary")
     lines.append("-----------------")
@@ -72,10 +87,10 @@ def format_summary(summary: Summary) -> str:
     else:
         for issue in summary.issues:
             lines.append(f"- {issue.message} ({issue.count})")
+            # Print only a small sample for quick inspection.
             for ex in issue.examples[:2]:
                 ex_str = ", ".join(f"{k}={v}" for k, v in ex.items())
                 lines.append(f"    example: {ex_str}")
-
 
         if summary.anomaly is not None:
             lines.append(f"- {summary.anomaly.message} ({summary.anomaly.count})")
@@ -83,12 +98,13 @@ def format_summary(summary: Summary) -> str:
                 ex_str = ", ".join(f"{k}={v}" for k, v in ex.items())
                 lines.append(f"    example: {ex_str}")
 
-
     lines.append("")
     lines.append(f"Migration risk level: {summary.risk.value}")
     return "\n".join(lines)
 
+
 def to_json_dict(summary: Summary, cleaning_stats: dict | None = None) -> Dict[str, Any]:
+    """Machine-readable report for automation (CI, dashboards, regression tests)."""
     issues = []
     for i in summary.issues:
         issues.append({

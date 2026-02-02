@@ -9,6 +9,7 @@ import pandas as pd
 
 @dataclass(frozen=True)
 class Issue:
+    """Single validation finding with a small sample of concrete examples."""
     category: str
     message: str
     count: int
@@ -16,6 +17,7 @@ class Issue:
 
 
 def _require_columns(df: pd.DataFrame, required: List[str], label: str) -> List[Issue]:
+    """Validate that df contains required columns; returns a schema Issue if not."""
     missing = [c for c in required if c not in df.columns]
     if not missing:
         return []
@@ -28,6 +30,7 @@ def _require_columns(df: pd.DataFrame, required: List[str], label: str) -> List[
 
 
 def _duplicate_ids(df: pd.DataFrame, id_col: str, label: str) -> List[Issue]:
+    """Detect duplicate identifier values in id_col and return unique duplicates count."""
     if id_col not in df.columns:
         return []
     dup_mask = df[id_col].duplicated(keep=False)
@@ -44,6 +47,7 @@ def _duplicate_ids(df: pd.DataFrame, id_col: str, label: str) -> List[Issue]:
 
 
 def _missing_account_refs(transactions: pd.DataFrame, accounts: pd.DataFrame) -> List[Issue]:
+    """Flag transactions whose account_id does not exist in accounts."""
     if "account_id" not in transactions.columns or "account_id" not in accounts.columns:
         return []
     acc_ids = set(accounts["account_id"].astype(str).dropna().tolist())
@@ -62,6 +66,7 @@ def _missing_account_refs(transactions: pd.DataFrame, accounts: pd.DataFrame) ->
 
 
 def _currency_mismatches(transactions: pd.DataFrame, accounts: pd.DataFrame) -> List[Issue]:
+    """Flag transactions whose currency differs from the referenced account currency."""
     needed_tx = {"account_id", "currency", "transaction_id"}
     needed_ac = {"account_id", "currency"}
     if not needed_tx.issubset(transactions.columns) or not needed_ac.issubset(accounts.columns):
@@ -72,8 +77,17 @@ def _currency_mismatches(transactions: pd.DataFrame, accounts: pd.DataFrame) -> 
     tx["account_id"] = tx["account_id"].astype(str)
     ac["account_id"] = ac["account_id"].astype(str)
 
-    merged = tx.merge(ac[["account_id", "currency"]], on="account_id", how="left", suffixes=("_tx", "_ac"))
-    mism = merged[(merged["currency_tx"].notna()) & (merged["currency_ac"].notna()) & (merged["currency_tx"] != merged["currency_ac"])]
+    merged = tx.merge(
+        ac[["account_id", "currency"]],
+        on="account_id",
+        how="left",
+        suffixes=("_tx", "_ac")
+    )
+    mism = merged[
+        (merged["currency_tx"].notna())
+        & (merged["currency_ac"].notna())
+        & (merged["currency_tx"] != merged["currency_ac"])
+    ]
     if mism.empty:
         return []
     examples = mism[["transaction_id", "account_id", "currency_tx", "currency_ac"]].head(5).to_dict(orient="records")
@@ -86,6 +100,7 @@ def _currency_mismatches(transactions: pd.DataFrame, accounts: pd.DataFrame) -> 
 
 
 def _future_dated_transactions(transactions: pd.DataFrame) -> List[Issue]:
+    """Flag transactions with a parsed date later than today."""
     if "date" not in transactions.columns:
         return []
     tx = transactions.copy()
@@ -104,6 +119,7 @@ def _future_dated_transactions(transactions: pd.DataFrame) -> List[Issue]:
 
 
 def _zero_amounts(transactions: pd.DataFrame) -> List[Issue]:
+    """Flag transactions where amount parses to numeric zero."""
     if "amount" not in transactions.columns:
         return []
     tx = transactions.copy()
@@ -121,6 +137,12 @@ def _zero_amounts(transactions: pd.DataFrame) -> List[Issue]:
 
 
 def validate(accounts: pd.DataFrame, transactions: pd.DataFrame, vendors: pd.DataFrame | None = None) -> List[Issue]:
+    """
+    Run all validations and return a flat list of Issues.
+
+    The function is intentionally format-agnostic; adapters are responsible for
+    mapping raw inputs into the expected canonical columns.
+    """
     issues: List[Issue] = []
 
     issues.extend(_require_columns(accounts, ["account_id", "account_name", "type", "currency"], "accounts"))
@@ -137,7 +159,9 @@ def validate(accounts: pd.DataFrame, transactions: pd.DataFrame, vendors: pd.Dat
 
     return issues
 
+
 def _missing_transaction_ids(transactions: pd.DataFrame) -> List[Issue]:
+    """Flag missing/blank transaction_id values (including stringified nulls)."""
     if "transaction_id" not in transactions.columns:
         return []
     txid = transactions["transaction_id"].astype(str)

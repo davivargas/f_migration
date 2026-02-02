@@ -1,3 +1,4 @@
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -11,6 +12,7 @@ from .base import LoadedData
 
 @dataclass(frozen=True)
 class GovCleanStats:
+    """Summary of normalization outcomes for the Gov Canada GL adapter."""
     rows_in: int
     rows_out: int
     bad_date: int
@@ -20,6 +22,13 @@ class GovCleanStats:
 
 
 class GovCanadaGLAdapter:
+    """
+    Adapter for the Receiver General of Canada accounting transactions CSV.
+
+    Responsibility: map the raw bilingual schema into the project's canonical
+    (accounts, transactions) tables, applying minimal deterministic normalization
+    so validation/anomaly checks can run end-to-end.
+    """
 
     _COL_VOUCHER = "Journal-Voucher-Identifier-Identificateur-de-la-pièce-de-journal"
     _COL_ITEM = "Journal-Voucher-Item-Identifier-Identificateur-de-l'item-de-la-pièce-de-journal"
@@ -36,6 +45,16 @@ class GovCanadaGLAdapter:
                  currency: str = "CAD",
                  drop_bad_rows: bool = True,
                  bucket_missing_accounts: bool = True) -> None:
+        """
+        Parameters
+        ----------
+        currency:
+            Currency to assign to all normalized records (dataset is CAD).
+        drop_bad_rows:
+            If True, drop rows with unparseable dates or amounts after normalization.
+        bucket_missing_accounts:
+            If True, map missing dept/GL values to 'UNKNOWN' so rows can still be evaluated.
+        """
         self._currency = currency
         self._drop_bad_rows = drop_bad_rows
         self._bucket_missing_accounts = bucket_missing_accounts
@@ -43,10 +62,10 @@ class GovCanadaGLAdapter:
         self.last_fallback_ids_used: int = 0
 
     def load(self, input_path: Path) -> LoadedData:
+        """Load the CSV and return canonical (accounts, transactions) tables."""
         raw = pd.read_csv(input_path)
         cleaned, stats = self._clean(raw)
         self.last_cleaning_stats = stats
-
 
         accounts, account_id_map = self._build_accounts(cleaned)
         transactions = self._build_transactions(cleaned, account_id_map)
@@ -58,6 +77,7 @@ class GovCanadaGLAdapter:
         )
 
     def _require_columns(self, df: pd.DataFrame) -> None:
+        """Fail fast if required raw columns are missing."""
         required = {
             self._COL_VOUCHER,
             self._COL_ITEM,
@@ -72,15 +92,25 @@ class GovCanadaGLAdapter:
             raise ValueError(f"Missing required columns: {sorted(missing)}")
 
     def _clean(self, df: pd.DataFrame) -> Tuple[pd.DataFrame, GovCleanStats]:
+        """
+        Minimal deterministic normalization needed for evaluation.
+
+        Notes
+        -----
+        - Does not "fix" business meaning; it standardizes formats so rules can run.
+        - Tracks counts for visibility (stats are surfaced in the CLI/JSON).
+        """
         rows_in = int(df.shape[0])
 
         df = df.copy()
         df.columns = [c.strip() for c in df.columns]
         self._require_columns(df)
 
+        # Normalize key identifier fields to strings (avoids mixed-type ops later).
         for col in [self._COL_VOUCHER, self._COL_ITEM, self._COL_DEPT, self._COL_GL, self._COL_CD]:
             df[col] = df[col].astype("string").str.strip()
 
+        # Count rows with missing/empty dept or GL (row-level count, not per-cell).
         dept = df[self._COL_DEPT].astype("string").str.strip()
         gl = df[self._COL_GL].astype("string").str.strip()
 
@@ -89,6 +119,7 @@ class GovCanadaGLAdapter:
 
         missing_dept_or_gl = int(missing_mask.sum())
 
+        # Keep rows evaluable by bucketing missing account keys to UNKNOWN when enabled.
         if self._bucket_missing_accounts:
             df[self._COL_DEPT] = df[self._COL_DEPT].fillna("UNKNOWN").replace("", "UNKNOWN")
             df[self._COL_GL] = df[self._COL_GL].fillna("UNKNOWN").replace("", "UNKNOWN")
@@ -96,10 +127,12 @@ class GovCanadaGLAdapter:
             df = df[df[self._COL_DEPT].notna() & df[self._COL_GL].notna()]
             df = df[(df[self._COL_DEPT] != "") & (df[self._COL_GL] != "")]
 
+        # Parse dates; store ISO date string for downstream validators.
         parsed = pd.to_datetime(df[self._COL_DATE], errors="coerce")
         bad_date = int(parsed.isna().sum())
         df["date_iso"] = parsed.dt.date.astype("string")
 
+        # Normalize credit/debit codes to {C, D}.
         cd = df[self._COL_CD].astype("string").str.upper().str.strip()
         cd = cd.replace({
             "CR": "C",
@@ -117,6 +150,7 @@ class GovCanadaGLAdapter:
         valid_cd_mask = df["cd_norm"].isin(["C", "D"])
         bad_cd_code = int((~valid_cd_mask).sum())
 
+        # Parse amounts with common locale formats (comma/decimal variants).
         amt_str = df[self._COL_AMOUNT].astype("string").str.strip()
 
         amt_str = amt_str.str.replace(" ", "", regex=False)
@@ -132,12 +166,14 @@ class GovCanadaGLAdapter:
         amt_num = pd.to_numeric(amt_str, errors="coerce")
         bad_amount = int(amt_num.isna().sum())
 
+        # Apply sign based on C/D to produce canonical signed amounts.
         amount = pd.Series(pd.NA, index=df.index, dtype="Float64")
         amount[valid_cd_mask & (df["cd_norm"] == "C")] = amt_num[valid_cd_mask & (df["cd_norm"] == "C")]
         amount[valid_cd_mask & (df["cd_norm"] == "D")] = -amt_num[valid_cd_mask & (df["cd_norm"] == "D")]
 
         df["amount"] = amount
 
+        # Optionally drop rows that cannot be evaluated (invalid date/amount).
         if self._drop_bad_rows:
             df = df[df["date_iso"].notna()]
             df = df[df["amount"].notna()]
@@ -156,6 +192,7 @@ class GovCanadaGLAdapter:
         return df, stats
 
     def _build_accounts(self, df: pd.DataFrame) -> tuple[pd.DataFrame, Dict[str, int]]:
+        """Create a canonical accounts table keyed by Dept-GL."""
         df = df.copy()
 
         df["account_key"] = df[self._COL_DEPT] + "-" + df[self._COL_GL]
@@ -176,11 +213,13 @@ class GovCanadaGLAdapter:
         return accounts, account_id_map
 
     def _build_transactions(self, df: pd.DataFrame, account_id_map: Dict[str, int]) -> pd.DataFrame:
+        """Create a canonical transactions table from normalized rows."""
         df = df.copy()
         df["account_key"] = df[self._COL_DEPT] + "-" + df[self._COL_GL]
 
         tx = pd.DataFrame()
 
+        # Prefer voucher+item IDs when present; otherwise fall back to row-based IDs.
         voucher = df[self._COL_VOUCHER].astype("string").fillna("").str.strip()
         item = df[self._COL_ITEM].astype("string").fillna("").str.strip()
 
@@ -198,7 +237,7 @@ class GovCanadaGLAdapter:
         tx["currency"] = self._currency
         tx["date"] = df["date_iso"].astype(str)
 
-        # Clean description (no "nan")
+        # Keep a compact human-readable description for reports.
         desc = "JV " + voucher + " | Item " + item
 
         if self._COL_CTRL_NUM in df.columns:

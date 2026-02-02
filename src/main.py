@@ -12,6 +12,7 @@ from src.adapters.gov_canada_gl import GovCanadaGLAdapter
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse CLI args for selecting dataset format, validation options, and output."""
     parser = argparse.ArgumentParser(
         description="Next-Day Migration Validator"
     )
@@ -43,31 +44,38 @@ def parse_args() -> argparse.Namespace:
     )
 
     parser.add_argument(
-    "--stress-test",
-    action="store_true",
-    help="Inject controlled data issues to test validation logic"
+        "--stress-test",
+        action="store_true",
+        help="Inject controlled data issues to test validation logic"
     )
 
     parser.add_argument(
-    "--json",
-    default="",
-    help="Write JSON report to this path (e.g. out/report.json)."
+        "--json",
+        default="",
+        help="Write JSON report to this path (e.g. out/report.json)."
     )
 
     parser.add_argument(
-    "--top-outliers",
-    type=int,
-    default=0,
-    help="If > 0, flag only the top N absolute amounts as anomalies."
-)
+        "--top-outliers",
+        type=int,
+        default=0,
+        help="If > 0, flag only the top N absolute amounts as anomalies."
+    )
 
     return parser.parse_args()
 
 
 def main() -> int:
+    """
+    Entry point for running the migration evaluation.
+
+    Returns an exit code suitable for scripts/CI:
+    0 = LOW risk, 2 = MEDIUM risk, 5 = HIGH risk.
+    """
     args = parse_args()
     input_path = Path(args.input)
 
+    # Pick adapter based on input format (keeps validation logic format-agnostic).
     if args.format == "simple_csv":
         adapter = SimpleCsvAdapter()
     elif args.format == "gov_canada_gl":
@@ -79,12 +87,14 @@ def main() -> int:
 
     loaded = adapter.load(input_path)
 
+    # Gov adapter exposes normalization stats; print them when available and pass to JSON.
     cleaning_stats = None
     if args.format == "gov_canada_gl":
         stats = getattr(adapter, "last_cleaning_stats", None)
         if stats is not None:
             cleaning_stats = stats.__dict__.copy()
             cleaning_stats["fallback_transactions"] = getattr(adapter, "last_fallback_ids_used", 0)
+
             print("Cleaning Stats")
             print("-------------")
             print(f"Rows in: {stats.rows_in}")
@@ -93,12 +103,12 @@ def main() -> int:
             print(f"Bad amounts: {stats.bad_amount}")
             print(f"Bad credit/debit codes: {stats.bad_cd_code}")
             print(f"Rows bucketed to UNKNOWN account (missing dept or GL): {stats.missing_dept_or_gl}")
-            
+
             fallback = getattr(adapter, "last_fallback_ids_used", 0)
             print(f"Fallback transaction IDs used: {fallback}")
             print("")
 
-
+    # Stress test mutates transactions to intentionally trigger validators.
     if args.stress_test:
         loaded = loaded.__class__(
             accounts=loaded.accounts,
@@ -106,13 +116,15 @@ def main() -> int:
             vendors=loaded.vendors
         )
 
-
     issues = validate(
         loaded.accounts,
         loaded.transactions,
         loaded.vendors
     )
 
+    # Two anomaly modes:
+    # - top_outliers: deterministic inspection list (useful for real datasets)
+    # - detect_outliers: MAD-based statistical detection
     if args.top_outliers > 0:
         anomaly = top_n_amount_outliers(loaded.transactions, n=args.top_outliers)
     else:
@@ -131,6 +143,8 @@ def main() -> int:
     )
 
     print(format_summary(summary))
+
+    # Optional JSON output (for pipelines / regression testing / downstream tooling).
     if args.json:
         out_path = Path(args.json)
         out_path.parent.mkdir(parents=True, exist_ok=True)

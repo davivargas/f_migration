@@ -2,20 +2,33 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional
-from src.adapters.base import LoadedData
 
 import pandas as pd
 
+from src.adapters.base import LoadedData
+
+
 def load_csv(path: Path) -> pd.DataFrame:
+    """Load a CSV file and fail fast on missing or empty inputs."""
     if not path.exists():
         raise FileNotFoundError(f"Missing file: {path}")
+
     df = pd.read_csv(path)
     if df.empty:
         raise ValueError(f"Empty file: {path}")
+
     return df
 
 
 def load_all(data_dir: Path) -> LoadedData:
+    """
+    Load the simple/synthetic dataset format from a directory.
+
+    Expected files:
+    - accounts.csv
+    - transactions.csv
+    - vendors.csv (optional)
+    """
     accounts_path = data_dir / "accounts.csv"
     transactions_path = data_dir / "transactions.csv"
     vendors_path = data_dir / "vendors.csv"
@@ -29,4 +42,8 @@ def load_all(data_dir: Path) -> LoadedData:
     else:
         vendors_df = None
 
-    return LoadedData(accounts=accounts_df, transactions=transactions_df, vendors=vendors_df)
+    return LoadedData(
+        accounts=accounts_df,
+        transactions=transactions_df,
+        vendors=vendors_df
+    )
