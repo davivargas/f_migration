@@ -5,7 +5,7 @@ import json
 from src.adapters.simple_csv import SimpleCsvAdapter
 from src.adapters.kaggle_financial_accounting import KaggleFinancialAccountingAdapter
 from src.validator import validate
-from src.anomalies import detect_amount_outliers
+from src.anomalies import detect_amount_outliers, top_n_amount_outliers
 from src.report import build_summary, format_summary, to_json_dict, RiskLevel
 from src.stress import apply_stress
 from src.adapters.gov_canada_gl import GovCanadaGLAdapter
@@ -54,6 +54,13 @@ def parse_args() -> argparse.Namespace:
     help="Write JSON report to this path (e.g. out/report.json)."
     )
 
+    parser.add_argument(
+    "--top-outliers",
+    type=int,
+    default=0,
+    help="If > 0, flag only the top N absolute amounts as anomalies."
+)
+
     return parser.parse_args()
 
 
@@ -86,10 +93,10 @@ def main() -> int:
         loaded.vendors
     )
 
-    anomaly = detect_amount_outliers(
-        loaded.transactions,
-        z_threshold=args.z
-    )
+    if args.top_outliers > 0:
+        anomaly = top_n_amount_outliers(loaded.transactions, n=args.top_outliers)
+    else:
+        anomaly = detect_amount_outliers(loaded.transactions, z_threshold=args.z)
 
     vendors_count = (
         None if loaded.vendors is None else int(loaded.vendors.shape[0])
