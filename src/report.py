@@ -3,6 +3,8 @@ from __future__ import annotations
 from dataclasses import dataclass
 from enum import Enum
 from typing import List, Optional
+from dataclasses import asdict
+from typing import Any, Dict, Optional
 
 from .validator import Issue
 from .anomalies import AnomalyResult
@@ -73,3 +75,35 @@ def format_summary(summary: Summary) -> str:
     lines.append("")
     lines.append(f"Migration risk level: {summary.risk.value}")
     return "\n".join(lines)
+
+def to_json_dict(summary: Summary) -> Dict[str, Any]:
+    """
+    Convert Summary into a JSON-serializable dict.
+    """
+    issues = []
+    for i in summary.issues:
+        issues.append({
+            "category": i.category,
+            "message": i.message,
+            "count": i.count,
+            "examples": i.examples
+        })
+
+    anomaly: Optional[Dict[str, Any]] = None
+    if summary.anomaly is not None:
+        anomaly = {
+            "message": summary.anomaly.message,
+            "count": summary.anomaly.count,
+            "examples": summary.anomaly.examples
+        }
+
+    return {
+        "counts": {
+            "accounts": summary.accounts_count,
+            "transactions": summary.transactions_count,
+            "vendors": summary.vendors_count
+        },
+        "issues": issues,
+        "anomaly": anomaly,
+        "risk": summary.risk.value
+    }
