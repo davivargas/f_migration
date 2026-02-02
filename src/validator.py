@@ -133,5 +133,21 @@ def validate(accounts: pd.DataFrame, transactions: pd.DataFrame, vendors: pd.Dat
     issues.extend(_currency_mismatches(transactions, accounts))
     issues.extend(_future_dated_transactions(transactions))
     issues.extend(_zero_amounts(transactions))
+    issues.extend(_missing_transaction_ids(transactions))
 
     return issues
+
+def _missing_transaction_ids(transactions: pd.DataFrame) -> List[Issue]:
+    if "transaction_id" not in transactions.columns:
+        return []
+    txid = transactions["transaction_id"].astype(str)
+    missing = txid.str.strip().isin(["", "nan", "None"])
+    if not missing.any():
+        return []
+    examples = transactions.loc[missing, ["transaction_id"]].head(5).to_dict(orient="records")
+    return [Issue(
+        category="schema",
+        message="Missing or invalid transaction_id values",
+        count=int(missing.sum()),
+        examples=examples
+    )]
