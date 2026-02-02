@@ -8,6 +8,7 @@ from src.validator import validate
 from src.anomalies import detect_amount_outliers
 from src.report import build_summary, format_summary, to_json_dict, RiskLevel
 from src.stress import apply_stress
+from src.adapters.gov_canada_gl import GovCanadaGLAdapter
 
 
 def parse_args() -> argparse.Namespace:
@@ -18,7 +19,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--format",
         default="simple_csv",
-        choices=["simple_csv", "kaggle_financial_accounting"],
+        choices=["simple_csv", "kaggle_financial_accounting", "gov_canada_gl"],
         help="Input data format"
     )
 
@@ -62,6 +63,8 @@ def main() -> int:
 
     if args.format == "simple_csv":
         adapter = SimpleCsvAdapter()
+    elif args.format == "gov_canada_gl":
+        adapter = GovCanadaGLAdapter(currency=args.currency)
     else:
         adapter = KaggleFinancialAccountingAdapter(
             default_currency=args.currency
