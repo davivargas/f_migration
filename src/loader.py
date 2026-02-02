@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import Optional
-from adapters.base import LoadedData
+from src.adapters.base import LoadedData
 
 import pandas as pd
 
