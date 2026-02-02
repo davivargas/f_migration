@@ -42,6 +42,7 @@ def build_summary(accounts_count: int,
                   anomaly: Optional[AnomalyResult]) -> Summary:
     anomaly_count = 0 if anomaly is None else anomaly.count
     risk = _risk_from_counts(sum(i.count for i in issues), anomaly_count)
+
     if not issues and anomaly is not None and anomaly.message.startswith("Top "):
         risk = RiskLevel.MEDIUM
 
@@ -87,10 +88,7 @@ def format_summary(summary: Summary) -> str:
     lines.append(f"Migration risk level: {summary.risk.value}")
     return "\n".join(lines)
 
-def to_json_dict(summary: Summary) -> Dict[str, Any]:
-    """
-    Convert Summary into a JSON-serializable dict.
-    """
+def to_json_dict(summary: Summary, cleaning_stats: dict | None = None) -> Dict[str, Any]:
     issues = []
     for i in summary.issues:
         issues.append({
@@ -114,6 +112,7 @@ def to_json_dict(summary: Summary) -> Dict[str, Any]:
             "transactions": summary.transactions_count,
             "vendors": summary.vendors_count
         },
+        "cleaning": cleaning_stats,
         "issues": issues,
         "anomaly": anomaly,
         "risk": summary.risk.value
