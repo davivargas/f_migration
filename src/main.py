@@ -79,6 +79,26 @@ def main() -> int:
 
     loaded = adapter.load(input_path)
 
+    cleaning_stats = None
+    if args.format == "gov_canada_gl":
+        stats = getattr(adapter, "last_cleaning_stats", None)
+        if stats is not None:
+            cleaning_stats = stats.__dict__.copy()
+            cleaning_stats["fallback_transactions"] = getattr(adapter, "last_fallback_ids_used", 0)
+            print("Cleaning Stats")
+            print("-------------")
+            print(f"Rows in: {stats.rows_in}")
+            print(f"Rows out: {stats.rows_out}")
+            print(f"Bad dates: {stats.bad_date}")
+            print(f"Bad amounts: {stats.bad_amount}")
+            print(f"Bad credit/debit codes: {stats.bad_cd_code}")
+            print(f"Rows bucketed to UNKNOWN account (missing dept or GL): {stats.missing_dept_or_gl}")
+            
+            fallback = getattr(adapter, "last_fallback_ids_used", 0)
+            print(f"Fallback transaction IDs used: {fallback}")
+            print("")
+
+
     if args.stress_test:
         loaded = loaded.__class__(
             accounts=loaded.accounts,
@@ -116,7 +136,7 @@ def main() -> int:
         out_path.parent.mkdir(parents=True, exist_ok=True)
 
         with out_path.open("w", encoding="utf-8") as f:
-            json.dump(to_json_dict(summary), f, indent=2, ensure_ascii=False)
+            json.dump(to_json_dict(summary, cleaning_stats), f, indent=2, ensure_ascii=False)
 
     if summary.risk == RiskLevel.LOW:
         return 0
