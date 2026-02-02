@@ -1,0 +1,35 @@
+{
+  "counts": {
+    "accounts": 70,
+    "transactions": 14500,
+    "vendors": null
+  },
+  "issues": [],
+  "anomaly": {
+    "message": "Top 50 largest absolute transaction amounts",
+    "count": 50,
+    "examples": [
+      {
+        "transaction_id": NaN,
+        "amount": -46614033473.18
+      },
+      {
+        "transaction_id": NaN,
+        "amount": -38870586006.48
+      },
+      {
+        "transaction_id": NaN,
+        "amount": -36685847782.21
+      },
+      {
+        "transaction_id": NaN,
+        "amount": -35578964073.53
+      },
+      {
+        "transaction_id": NaN,
+        "amount": -33708823004.14
+      }
+    ]
+  },
+  "risk": "HIGH"
+}

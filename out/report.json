@@ -1,0 +1,154 @@
+{
+  "counts": {
+    "accounts": 4,
+    "transactions": 100000,
+    "vendors": 100
+  },
+  "issues": [
+    {
+      "category": "integrity",
+      "message": "Transactions reference missing accounts",
+      "count": 500,
+      "examples": [
+        {
+          "transaction_id": "kfa_000075",
+          "account_id": 999999
+        },
+        {
+          "transaction_id": "kfa_000283",
+          "account_id": 999999
+        },
+        {
+          "transaction_id": "kfa_000426",
+          "account_id": 999999
+        },
+        {
+          "transaction_id": "kfa_000465",
+          "account_id": 999999
+        },
+        {
+          "transaction_id": "kfa_000852",
+          "account_id": 999999
+        }
+      ]
+    },
+    {
+      "category": "sanity",
+      "message": "Currency mismatch between transaction and account",
+      "count": 498,
+      "examples": [
+        {
+          "transaction_id": "kfa_000054",
+          "account_id": "1003",
+          "currency_tx": "EUR",
+          "currency_ac": "USD"
+        },
+        {
+          "transaction_id": "kfa_000222",
+          "account_id": "1001",
+          "currency_tx": "EUR",
+          "currency_ac": "USD"
+        },
+        {
+          "transaction_id": "kfa_000727",
+          "account_id": "1004",
+          "currency_tx": "EUR",
+          "currency_ac": "USD"
+        },
+        {
+          "transaction_id": "kfa_000773",
+          "account_id": "1001",
+          "currency_tx": "EUR",
+          "currency_ac": "USD"
+        },
+        {
+          "transaction_id": "kfa_001331",
+          "account_id": "1004",
+          "currency_tx": "EUR",
+          "currency_ac": "USD"
+        }
+      ]
+    },
+    {
+      "category": "sanity",
+      "message": "Transactions dated in the future",
+      "count": 200,
+      "examples": [
+        {
+          "transaction_id": "kfa_000151",
+          "date": "2035-01-01"
+        },
+        {
+          "transaction_id": "kfa_000351",
+          "date": "2035-01-01"
+        },
+        {
+          "transaction_id": "kfa_001793",
+          "date": "2035-01-01"
+        },
+        {
+          "transaction_id": "kfa_002720",
+          "date": "2035-01-01"
+        },
+        {
+          "transaction_id": "kfa_003391",
+          "date": "2035-01-01"
+        }
+      ]
+    },
+    {
+      "category": "sanity",
+      "message": "Zero-amount transactions",
+      "count": 100,
+      "examples": [
+        {
+          "transaction_id": "kfa_000337",
+          "amount": 0.0
+        },
+        {
+          "transaction_id": "kfa_002012",
+          "amount": 0.0
+        },
+        {
+          "transaction_id": "kfa_004853",
+          "amount": 0.0
+        },
+        {
+          "transaction_id": "kfa_005721",
+          "amount": 0.0
+        },
+        {
+          "transaction_id": "kfa_009151",
+          "amount": 0.0
+        }
+      ]
+    }
+  ],
+  "anomaly": {
+    "message": "Anomalous transaction amounts (modified z-score > 3.5)",
+    "count": 10,
+    "examples": [
+      {
+        "transaction_id": "kfa_004706",
+        "amount": 99900000.0
+      },
+      {
+        "transaction_id": "kfa_008969",
+        "amount": 99900000.0
+      },
+      {
+        "transaction_id": "kfa_011847",
+        "amount": 99900000.0
+      },
+      {
+        "transaction_id": "kfa_029818",
+        "amount": 99900000.0
+      },
+      {
+        "transaction_id": "kfa_030772",
+        "amount": 99900000.0
+      }
+    ]
+  },
+  "risk": "HIGH"
+}
