@@ -58,14 +58,40 @@ def parse_args() -> argparse.Namespace:
 
 def main() -> int:
     args = parse_args()
-    data_dir = Path(args.data)
+    input_path = Path(args.input)
 
-    loaded = load_all(data_dir)
+    if args.format == "simple_csv":
+        adapter = SimpleCsvAdapter()
+    else:
+        adapter = KaggleFinancialAccountingAdapter(
+            default_currency=args.currency
+        )
 
-    issues = validate(loaded.accounts, loaded.transactions, loaded.vendors)
-    anomaly = detect_amount_outliers(loaded.transactions, z_threshold=args.z)
+    loaded = adapter.load(input_path)
 
-    vendors_count = None if loaded.vendors is None else int(loaded.vendors.shape[0])
+    if args.stress_test:
+        loaded = loaded.__class__(
+            accounts=loaded.accounts,
+            transactions=apply_stress(loaded.transactions, loaded.accounts),
+            vendors=loaded.vendors
+        )
+
+
+    issues = validate(
+        loaded.accounts,
+        loaded.transactions,
+        loaded.vendors
+    )
+
+    anomaly = detect_amount_outliers(
+        loaded.transactions,
+        z_threshold=args.z
+    )
+
+    vendors_count = (
+        None if loaded.vendors is None else int(loaded.vendors.shape[0])
+    )
+
     summary = build_summary(
         accounts_count=int(loaded.accounts.shape[0]),
         transactions_count=int(loaded.transactions.shape[0]),
@@ -75,7 +101,18 @@ def main() -> int:
     )
 
     print(format_summary(summary))
-    return 0
+    if args.json:
+        out_path = Path(args.json)
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+
+        with out_path.open("w", encoding="utf-8") as f:
+            json.dump(to_json_dict(summary), f, indent=2, ensure_ascii=False)
+
+    if summary.risk == RiskLevel.LOW:
+        return 0
+    if summary.risk == RiskLevel.MEDIUM:
+        return 2
+    return 5
 
 
 if __name__ == "__main__":
