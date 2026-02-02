@@ -39,10 +39,14 @@ class GovCanadaGLAdapter:
         self._currency = currency
         self._drop_bad_rows = drop_bad_rows
         self._bucket_missing_accounts = bucket_missing_accounts
+        self.last_cleaning_stats: Optional[GovCleanStats] = None
+        self.last_fallback_ids_used: int = 0
 
     def load(self, input_path: Path) -> LoadedData:
         raw = pd.read_csv(input_path)
-        cleaned, _stats = self._clean(raw)
+        cleaned, stats = self._clean(raw)
+        self.last_cleaning_stats = stats
+
 
         accounts, account_id_map = self._build_accounts(cleaned)
         transactions = self._build_transactions(cleaned, account_id_map)
@@ -77,12 +81,13 @@ class GovCanadaGLAdapter:
         for col in [self._COL_VOUCHER, self._COL_ITEM, self._COL_DEPT, self._COL_GL, self._COL_CD]:
             df[col] = df[col].astype("string").str.strip()
 
-        missing_dept_or_gl = int(
-            df[self._COL_DEPT].isna().sum()
-            + (df[self._COL_DEPT] == "").sum()
-            + df[self._COL_GL].isna().sum()
-            + (df[self._COL_GL] == "").sum()
-        )
+        dept = df[self._COL_DEPT].astype("string").str.strip()
+        gl = df[self._COL_GL].astype("string").str.strip()
+
+        missing_mask = dept.isna() | (dept == "") | (dept.str.lower() == "nan") | \
+                    gl.isna() | (gl == "") | (gl.str.lower() == "nan")
+
+        missing_dept_or_gl = int(missing_mask.sum())
 
         if self._bucket_missing_accounts:
             df[self._COL_DEPT] = df[self._COL_DEPT].fillna("UNKNOWN").replace("", "UNKNOWN")
@@ -181,6 +186,8 @@ class GovCanadaGLAdapter:
 
         base_id = "gov_" + voucher + "_" + item
         missing_id = (voucher == "") | (item == "")
+        fallback_ids_used = int(missing_id.sum())
+        self.last_fallback_ids_used = fallback_ids_used
 
         # IMPORTANT: assign only to the subset
         base_id.loc[missing_id] = "gov_row_" + df.index[missing_id].astype(str)
