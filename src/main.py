@@ -1,22 +1,58 @@
-from __future__ import annotations
-
-import argparse
 from pathlib import Path
 import argparse
 import json
 
-from .loader import load_all
-from .validator import validate
-from .anomalies import detect_amount_outliers
-from .report import build_summary, format_summary
+from src.adapters.simple_csv import SimpleCsvAdapter
+from src.adapters.kaggle_financial_accounting import KaggleFinancialAccountingAdapter
+from src.validator import validate
+from src.anomalies import detect_amount_outliers
+from src.report import build_summary, format_summary, to_json_dict, RiskLevel
+from src.stress import apply_stress
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
-        description="Next-Day Migration Validator: validate and summarize accounting exports."
+        description="Next-Day Migration Validator"
     )
-    parser.add_argument("--data", type=str, default="data", help="Path to folder containing CSV files.")
-    parser.add_argument("--z", type=float, default=3.5, help="Modified z-score threshold for amount anomalies.")
+
+    parser.add_argument(
+        "--format",
+        default="simple_csv",
+        choices=["simple_csv", "kaggle_financial_accounting"],
+        help="Input data format"
+    )
+
+    parser.add_argument(
+        "--input",
+        default="data",
+        help="Folder (simple_csv) or CSV file path (kaggle_financial_accounting)"
+    )
+
+    parser.add_argument(
+        "--currency",
+        default="USD",
+        help="Default currency for datasets without currency information"
+    )
+
+    parser.add_argument(
+        "--z",
+        type=float,
+        default=3.5,
+        help="Z-score threshold for anomaly detection"
+    )
+
+    parser.add_argument(
+    "--stress-test",
+    action="store_true",
+    help="Inject controlled data issues to test validation logic"
+    )
+
+    parser.add_argument(
+    "--json",
+    default="",
+    help="Write JSON report to this path (e.g. out/report.json)."
+    )
+
     return parser.parse_args()
 
 
