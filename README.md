@@ -39,7 +39,7 @@ The output is designed to be readable by humans and usable in automation.
 
 ## Quick start
 
-````bash
+```bash
 # clone
 git clone <repo-url>
 cd financial-migration-validator
@@ -62,6 +62,7 @@ py -m src.main \
   --input data/real_datasets/receiver_general_accounting_transactions_canada.csv \
   --currency CAD \
   --top-outliers 50
+```
 
 Output is printed to the CLI and can optionally be exported as JSON for automation.
 
@@ -69,6 +70,7 @@ Output is printed to the CLI and can optionally be exported as JSON for automati
 
 ```bash
 py -m src.main ... --json out/report.json
+```
 
 ---
 
@@ -346,4 +348,7 @@ Potential improvements:
 This project is a focused attempt to treat financial migrations as a **data quality and risk problem**, not just a data movement problem.
 
 It is simple, but grounded in real datasets and real failure modes.
-````
+
+```
+
+```
