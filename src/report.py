@@ -68,9 +68,17 @@ def format_summary(summary: Summary) -> str:
     else:
         for issue in summary.issues:
             lines.append(f"- {issue.message} ({issue.count})")
+            for ex in issue.examples[:2]:
+                ex_str = ", ".join(f"{k}={v}" for k, v in ex.items())
+                lines.append(f"    example: {ex_str}")
+
 
         if summary.anomaly is not None:
             lines.append(f"- {summary.anomaly.message} ({summary.anomaly.count})")
+            for ex in summary.anomaly.examples[:2]:
+                ex_str = ", ".join(f"{k}={v}" for k, v in ex.items())
+                lines.append(f"    example: {ex_str}")
+
 
     lines.append("")
     lines.append(f"Migration risk level: {summary.risk.value}")
