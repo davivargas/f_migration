@@ -1,18 +1,10 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Optional
+from adapters.base import LoadedData
 
 import pandas as pd
-
-
-@dataclass(frozen=True)
-class LoadedData:
-    accounts: pd.DataFrame
-    transactions: pd.DataFrame
-    vendors: Optional[pd.DataFrame]
-
 
 def load_csv(path: Path) -> pd.DataFrame:
     if not path.exists():
