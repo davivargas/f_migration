@@ -2,10 +2,18 @@
 
 This project is a **simple but practical system to evaluate the quality and risk of financial datasets before a migration**.
 
-Financial migrations usually fail not because the code crashes, but because the data is subtly wrong:
-missing identifiers, duplicated records, broken references, inconsistent currencies, or extreme values that look valid but are not.
+In real financial migrations, data is rarely clean — and engineers should not be expected to manually clean it.
+Instead, the platform receiving the data must be able to **ingest imperfect inputs, normalize them safely, and make data quality problems explicit**.
 
-The goal of this project is to **surface those problems early**, in a clear and inspectable way, so a migration decision can be made with context instead of assumptions.
+This system treats “cleaning” as a **controlled normalization step**, not as data correction.
+No records are silently fixed or dropped. When the data is incomplete or ambiguous, the system:
+
+- applies deterministic fallback rules
+- tracks exactly what was normalized
+- surfaces those decisions in the final report
+
+The goal is not to make the data look good.  
+The goal is to make migration risk visible.
 
 This is not a full migration tool.  
 It is a **pre-migration evaluation layer**.
@@ -26,6 +34,33 @@ Given a financial dataset, the system:
    - a migration risk level (LOW / MEDIUM / HIGH)
 
 The output is designed to be readable by humans and usable in automation.
+
+---
+
+## Why normalization (not manual cleaning)
+
+In a real migration, upstream systems often cannot be changed, and downstream systems must be resilient to imperfect data.
+
+For that reason, this project does not assume:
+
+- clean identifiers
+- complete reference data
+- consistent schemas
+- well-formed transactions
+
+Instead, adapters apply **minimal, deterministic normalization** so the dataset can be evaluated end to end.
+
+Examples:
+
+- missing or weak identifiers are bucketed into explicit fallback IDs
+- missing department or GL codes are mapped to a known UNKNOWN account
+- invalid or unparseable fields are counted and reported, not silently corrected
+- debit/credit sign logic is normalized while preserving original values
+
+All normalization steps are measured and exposed in the report (for example: how many fallback IDs were used).
+
+This mirrors how real ingestion pipelines work:  
+**accept imperfect data, preserve intent, and make risk visible**.
 
 ---
 
