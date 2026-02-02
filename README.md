@@ -37,6 +37,41 @@ The output is designed to be readable by humans and usable in automation.
 
 ---
 
+## Quick start
+
+````bash
+# clone
+git clone <repo-url>
+cd financial-migration-validator
+
+# install deps
+pip install -r requirements.txt
+
+# run on simple CSV format
+py -m src.main --format simple_csv --input data/
+
+# run on Kaggle dataset
+py -m src.main \
+  --format kaggle_financial_accounting \
+  --input data/real_datasets/financial_accounting.csv \
+  --currency USD
+
+# run on Canadian government GL data
+py -m src.main \
+  --format gov_canada_gl \
+  --input data/real_datasets/receiver_general_accounting_transactions_canada.csv \
+  --currency CAD \
+  --top-outliers 50
+
+Output is printed to the CLI and can optionally be exported as JSON for automation.
+
+### JSON output
+
+```bash
+py -m src.main ... --json out/report.json
+
+---
+
 ## Why normalization (not manual cleaning)
 
 In a real migration, upstream systems often cannot be changed, and downstream systems must be resilient to imperfect data.
@@ -59,14 +94,14 @@ Examples:
 
 All normalization steps are measured and exposed in the report (for example: how many fallback IDs were used).
 
-This mirrors how real ingestion pipelines work:  
+This mirrors how real ingestion pipelines work:
 **accept imperfect data, preserve intent, and make risk visible**.
 
 ---
 
 ## Data flow (simplified)
 
-Raw financial data is not assumed to be clean.  
+Raw financial data is not assumed to be clean.
 It is normalized just enough to be evaluated safely.
 
 Raw dataset
@@ -153,7 +188,7 @@ Anomaly detection (optional)
 ↓
 Risk assessment + report
 
-Adapters deal with format-specific complexity.  
+Adapters deal with format-specific complexity.
 Validation rules are format-agnostic.
 
 ---
@@ -311,3 +346,4 @@ Potential improvements:
 This project is a focused attempt to treat financial migrations as a **data quality and risk problem**, not just a data movement problem.
 
 It is simple, but grounded in real datasets and real failure modes.
+````
