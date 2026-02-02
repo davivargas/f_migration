@@ -42,6 +42,9 @@ def build_summary(accounts_count: int,
                   anomaly: Optional[AnomalyResult]) -> Summary:
     anomaly_count = 0 if anomaly is None else anomaly.count
     risk = _risk_from_counts(sum(i.count for i in issues), anomaly_count)
+    if not issues and anomaly is not None and anomaly.message.startswith("Top "):
+        risk = RiskLevel.MEDIUM
+
     return Summary(
         accounts_count=accounts_count,
         transactions_count=transactions_count,
