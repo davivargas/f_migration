@@ -176,33 +176,35 @@ class GovCanadaGLAdapter:
 
         tx = pd.DataFrame()
 
-        tx["transaction_id"] = (
-            "gov_"
-            + df[self._COL_VOUCHER].astype(str)
-            + "_"
-            + df[self._COL_ITEM].astype(str)
-        )
+        voucher = df[self._COL_VOUCHER].astype("string").fillna("").str.strip()
+        item = df[self._COL_ITEM].astype("string").fillna("").str.strip()
 
+        base_id = "gov_" + voucher + "_" + item
+        missing_id = (voucher == "") | (item == "")
+
+        # IMPORTANT: assign only to the subset
+        base_id.loc[missing_id] = "gov_row_" + df.index[missing_id].astype(str)
+
+        tx["transaction_id"] = base_id
         tx["account_id"] = df["account_key"].map(account_id_map).astype("Int64")
         tx["amount"] = df["amount"].astype(float).round(2)
         tx["currency"] = self._currency
         tx["date"] = df["date_iso"].astype(str)
 
-        desc = (
-            "JV " + df[self._COL_VOUCHER].astype(str)
-            + " | Item " + df[self._COL_ITEM].astype(str)
-        )
+        # Clean description (no "nan")
+        desc = "JV " + voucher + " | Item " + item
 
         if self._COL_CTRL_NUM in df.columns:
-            desc = desc + " | Ctrl " + df[self._COL_CTRL_NUM].astype(str)
+            ctrl = df[self._COL_CTRL_NUM].astype("string").fillna("").str.strip()
+            desc = desc + " | Ctrl " + ctrl
 
         if self._COL_FY in df.columns:
-            desc = desc + " | FY " + df[self._COL_FY].astype(str)
+            fy = df[self._COL_FY].astype("string").fillna("").str.strip()
+            desc = desc + " | FY " + fy
 
         if self._COL_FM in df.columns:
-            desc = desc + " | FM " + df[self._COL_FM].astype(str)
+            fm = df[self._COL_FM].astype("string").fillna("").str.strip()
+            desc = desc + " | FM " + fm
 
         tx["description"] = desc
-
-
         return tx
