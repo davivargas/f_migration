@@ -64,6 +64,32 @@ This mirrors how real ingestion pipelines work:
 
 ---
 
+## Data flow (simplified)
+
+Raw financial data is not assumed to be clean.  
+It is normalized just enough to be evaluated safely.
+
+Raw dataset
+|
+v
+Format adapter
+(normalize, bucket, track)
+|
+v
+Canonical schema
+|
+v
+Validation + anomaly checks
+|
+v
+Risk assessment
+(LOW / MEDIUM / HIGH)
+
+Normalization happens only to make evaluation possible.
+All fallback decisions are tracked and reported.
+
+---
+
 ## Why this matters
 
 In real systems, migrations often happen under pressure:
